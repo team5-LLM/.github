@@ -17,6 +17,8 @@
   <a href="">홈페이지</a>
     |  
   <a href="">Swagger</a>
+    |  
+  <a href="./docs/feature_specification.csv">기능명세서</a>
 </div>
 
 ---
@@ -84,7 +86,7 @@ prompt_text
 → 즉시 마스킹
 → 업무 유형 분류
 → embedding 생성
-→ 원문 폐기
+→ 원문 폐기 (FUNC-PROC-009 폐기 검증 / FUNC-PROC-010 실패 Fallback)
 → cluster_id, intent_label, risk_score, department 통계만 저장
 ```
 
@@ -176,7 +178,7 @@ Risk Score: 86
 - 감사 로그 적용
 ```
 
-### **7. 부서별 대시보드 (Department-level Only)**
+### **7. 부서별 대시보드 + 보안 위험도 (Department-level Only)**
 
 ```python
 [부서별 Risk Overview]
@@ -191,11 +193,13 @@ Risk Score: 86
 
 ---
 
-## 🔒 책임 있는 AI (보안성 강조 포인트)
+## 🔒 책임 있는 AI
+
+### 데이터 저장 정책
 
 | 구분 | 저장 여부 | 설명 |
 | :--- | :---: | :--- |
-| 프롬프트 원문 | ❌ | 원칙적으로 저장 X, 데모/운영 모두 미보관 권장 |
+| 프롬프트 원문 | ❌ | 원칙적으로 저장 X, 데모/운영 모두 미보관 |
 | 마스킹된 프롬프트 | △ | 대표 예시용으로 선택적 저장, 접근 제한 |
 | Embedding Vector | ⚪ (민감) | 원문 유추 가능성을 고려해 민감 데이터처럼 관리 |
 | 부서명 | ⚪ | 분석 단위로 사용 |
@@ -205,16 +209,36 @@ Risk Score: 86
 | Risk Score | ⚪ | 보안 위험 관리 |
 | Opportunity Score | ⚪ | 자동화 우선순위 추천 |
 
-**보안성 측면 강조 포인트 6가지**
+### 보안성 핵심 6원칙
 
-1. **원문 프롬프트 장기 저장 금지** — 마스킹·분류 후 즉시 폐기
+1. **원문 프롬프트 장기 저장 금지** — 마스킹·분류 후 즉시 폐기 (`FUNC-PROC-009` 폐기 검증 + `FUNC-PROC-010` 실패 Fallback)
 2. **개인 단위 분석 금지** — 부서 단위로만 집계 (감시 도구가 아닌 업무 개선 도구)
 3. **마스킹 실패 가능성 전제 설계** — 원문 미보관, 접근통제, 보관기간 제한 병행
-4. **Embedding도 민감 파생 데이터로 취급** — 접근 권한·보관 기간 제한
-5. **Risk Score와 Opportunity Score 분리** — 가치가 높아도 위험도 높으면 ‘보안 검토 필요’로 분류
+4. **Embedding도 민감 파생 데이터로 취급** — 접근 권한·보관 기간 제한 (`FUNC-PROC-011`)
+5. **Risk Score와 Opportunity Score 분리** — 가치가 높아도 위험도 높으면 ‘보안 검토 필요’로 분류 (`SCR-RECO-004`)
 6. **추천 근거 설명 가능성** — 업무유형 비중·반복성·비용 영향·사용자 수·위험도를 근거로 설명
 
 > 본 서비스는 프롬프트 원문을 장기 저장하지 않는다. 입력된 프롬프트는 Azure 환경 내에서 즉시 개인정보·기밀정보 마스킹을 거친 뒤, 업무 유형 분류와 임베딩 생성에만 사용된다. 저장되는 데이터는 부서 단위 통계, 군집 ID, 위험도 점수, 자동화 기회 점수이며, 개인별 감시가 아니라 부서 단위 업무 개선을 목적으로 한다.
+
+### 🏢 기업 도입 시 보안 우려 및 대응
+
+| # | 기업의 보안 우려 | 본 서비스의 대응 |
+|:---:|:---|:---|
+| 1 | 마스킹 전 원문이 외부 인프라에 잠시라도 머무름 | **Edge Masking** — 사내 LLM Gateway 단에서 선마스킹 옵션 제공 (옵션 C) |
+| 2 | 데이터 주권 / Region 이슈 | 고객별 Azure Region 선택 (Korea Central 등) |
+| 3 | 멀티테넌시 격리 수준 | 테넌트별 DB Schema 분리, 별도 Blob Container |
+| 4 | 과도한 Azure 권한 요구 | 최소 권한 원칙 — `Storage Blob Data Reader`, `Event Hub Data Receiver`만 요구 |
+| 5 | 네트워크 경로 노출 | Private Endpoint / Private Link 지원, TLS 1.2+, 저장 시 CMK |
+| 6 | 감사 추적 및 책임 소재 | 고객사에 접근 감사 로그 제공, 유출 통지 SLA 명시 |
+| 7 | 계약 종료 시 데이터 잔존 | 임베딩·백업본 포함 완전 삭제 보장 및 증빙 발급 |
+
+### 🛠️ 배포 모드 (Deployment Options)
+
+| 배포 모드 | 설명 | 보안 수준 | 적합한 고객 |
+|:---|:---|:---:|:---|
+| **A. SaaS Multi-tenant** | 본 서비스 인프라에서 모든 고객 처리 | 중 | 중견 기업, PoC 단계 |
+| **B. Customer-hosted (BYO Cloud)** | ARM/Bicep 템플릿으로 고객 Azure 구독 내 배포, 데이터 외부 미반출 | 높음 | 대기업, 금융·공공 |
+| **C. Edge Masking Gateway** | 사내 LLM Gateway에서 마스킹 후 전송, 본 서비스는 마스킹된 데이터만 수신 | 최고 | 법무·의료·기밀 업무 다수 |
 
 ---
 
@@ -253,6 +277,7 @@ Risk Score: 86
         <img src="https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white"/>
         <img src="https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white"/>
         <img src="https://img.shields.io/badge/Azure%20App%20Service-0078D4?style=flat&logo=microsoftazure&logoColor=white"/>
+        <img src="https://img.shields.io/badge/Azure%20Functions-0062AD?style=flat&logo=microsoftazure&logoColor=white"/>
       </td>
     </tr>
     <tr>
@@ -264,10 +289,17 @@ Risk Score: 86
       </td>
     </tr>
     <tr>
-      <td>데이터베이스</td>
+      <td>데이터베이스 / 스토리지</td>
       <td>
         <img src="https://img.shields.io/badge/Azure%20SQL%20Database-CC2927?style=flat&logo=microsoftsqlserver&logoColor=white"/>
         <img src="https://img.shields.io/badge/Azure%20Blob%20Storage-0078D4?style=flat&logo=microsoftazure&logoColor=white"/>
+      </td>
+    </tr>
+    <tr>
+      <td>실시간 수집 (P2)</td>
+      <td>
+        <img src="https://img.shields.io/badge/Azure%20Event%20Hub-0078D4?style=flat&logo=microsoftazure&logoColor=white"/>
+        <img src="https://img.shields.io/badge/LLM%20Gateway-1E1E1E?style=flat&logoColor=white"/>
       </td>
     </tr>
     <tr>
@@ -286,101 +318,246 @@ Risk Score: 86
 
 ## 🏗️ 시스템 아키텍처
 
-```
-[사용자/관리자]
-      |
-      v
-[React Dashboard - Azure Static Web Apps]
-      |
-      v
-[FastAPI Backend - Azure App Service]
-      |
-      |----------------------
-      |                      |
-      v                      v
-[Blob Storage]         [Azure SQL DB]
-CSV 원본 임시저장        분석 결과 저장
-(마스킹 후 원문 삭제)    부서별 통계 저장
-                            |
-                            v
-                  [Dashboard API 조회]
-```
-
-**AI 처리 흐름**
+### 입력 경로 (P0 메인 / P2 실시간)
 
 ```
-CSV 업로드
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   [P0 메인 입력]                  [P2 실시간 입력]              │
+│                                                                 │
+│   운영자가 CSV 추출/업로드        사내 LLM Gateway가 push       │
+│         ↓                                ↓                      │
+│   [React Dashboard]               [사내 LLM Gateway]            │
+│   Azure Static Web Apps                  ↓ (Event Hub push)     │
+│         ↓                         [Azure Event Hub]             │
+│         ↓                                ↓ (EventHubTrigger)    │
+│         ↓                         [Azure Functions]             │
+│         ↓                                ↓                      │
+│         └──→ [Azure Blob Storage] ←──────┘                      │
+│                       ↓                                         │
+│         ┌─────────────────────────┐                             │
+│         │  FastAPI Backend         │                             │
+│         │  (Azure App Service)     │                             │
+│         │                          │                             │
+│         │  마스킹 → 분류 → Score   │                             │
+│         │  → 자동화 매칭           │                             │
+│         └─────────────────────────┘                             │
+│                       ↓                                         │
+│              [Azure SQL Database]                               │
+│              부서별 통계 / Risk / Opportunity                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### AI 처리 흐름 (입력 경로 무관 단일 파이프라인)
+
+```
+입력 (CSV or Event Hub)
   ↓
 Prompt Text 추출
   ↓
-PII/기밀정보 탐지
+PII/기밀정보 탐지 (정규식 + LLM)
   ↓
-마스킹
+마스킹 → 원문 즉시 폐기 (폐기 검증 / 실패 Fallback)
   ↓
-Azure OpenAI 업무유형 분류
+업무 유형 분류 (Azure OpenAI)
   ↓
-Embedding 생성
+[P1] Embedding 생성 → Clustering
   ↓
-Clustering
+Risk Score 계산 (5개 항목 가중치 합산)
   ↓
-Risk Score 계산
+Opportunity Score 계산 (5개 항목 가중치 합산)
   ↓
-Opportunity Score 계산
+자동화 후보 매칭
   ↓
-자동화 후보 추천
-  ↓
-부서별 대시보드 표시
+부서별 대시보드 표시 / Risk 시각화 / 추천 카드
 ```
 
 ---
 
 ## ☁️ 사용 Azure 리소스
 
-### 필수 리소스
+### 필수 리소스 (P0)
 
-| 용도 | Azure 리소스 | 사용 이유 | 우선순위 |
-| :--- | :--- | :--- | :---: |
-| 프론트 배포 | Azure Static Web Apps | React 대시보드 배포 | P0 |
-| 백엔드 API | Azure App Service | FastAPI 서버 배포 | P0 |
-| LLM 분류/추천 | Azure OpenAI Service | 업무유형 분류, 추천 근거 생성 | P0 |
-| 임베딩 | Azure OpenAI Embedding Model | 프롬프트 군집화용 벡터 생성 | P0 |
-| DB | Azure SQL Database | 부서별 통계, 점수, 추천 결과 저장 | P0 |
-| 파일 저장 | Azure Blob Storage | CSV 업로드 파일 임시 저장 | P0 |
-| 시크릿 관리 | App Service Environment Variables | API Key, DB URL 관리 | P0 |
-| 모니터링 | Application Insights | API 오류/호출 로그 확인 | P1 |
+| 용도 | Azure 리소스 | 사용 이유 |
+| :--- | :--- | :--- |
+| 프론트 배포 | Azure Static Web Apps | React 대시보드 배포 |
+| 백엔드 API | Azure App Service | FastAPI 서버 배포 |
+| LLM 분류/추천 | Azure OpenAI Service | 업무유형 분류, 마스킹 탐지 |
+| DB | Azure SQL Database | 부서별 통계, 점수, 추천 결과 저장 |
+| 파일 저장 | Azure Blob Storage | CSV 업로드 파일 임시 저장 |
+| Secret 관리 | App Service Environment Variables | API Key, DB URL 관리 (P0 단계) |
 
-### 선택 리소스
+### 확장 리소스 (P1)
 
-| 용도 | Azure 리소스 | 사용 이유 | 우선순위 |
-| :--- | :--- | :--- | :---: |
-| 인증 | Microsoft Entra ID | 관리자 로그인/권한 관리 | P1~P2 |
-| Key 관리 | Azure Key Vault | OpenAI Key, DB Password 보안 관리 | P1 |
-| 배포 자동화 | GitHub Actions | main 브랜치 push 시 자동 배포 | P1 |
-| 컨테이너 배포 | Azure Container Apps | App Service 대체 가능 | P2 |
-| 검색/RAG | Azure AI Search | 문서 검색형 추천까지 확장 시 사용 | P2 |
-| 서버리스 작업 | Azure Functions | CSV 분석 비동기 처리 | P2 |
+| 용도 | Azure 리소스 | 사용 이유 |
+| :--- | :--- | :--- |
+| 임베딩 | Azure OpenAI Embedding Model | 프롬프트 군집화용 벡터 생성 |
+| 모니터링 | Application Insights | API 오류/호출 로그 / 시스템 모니터링 대시보드 |
+
+### 운영 리소스 (P2)
+
+| 용도 | Azure 리소스 | 사용 이유 |
+| :--- | :--- | :--- |
+| 실시간 수집 | Azure Event Hub | 사내 LLM Gateway에서 로그 push 수신 |
+| 실시간 처리 | Azure Functions | EventHubTrigger 기반 자동 분석 파이프라인 진입 |
+| 인증 | Microsoft Entra ID | SSO 로그인 / RBAC |
+| Key 관리 | Azure Key Vault | OpenAI Key, DB Password 통합 관리 |
+| 배포 자동화 | GitHub Actions | main 브랜치 push 시 자동 배포 |
 
 ---
 
 ## 🗂️ 주요 구현사항 (우선순위)
 
-| 우선순위 | 파트 | 구현사항 | Azure 리소스 |
-| :---: | :--- | :--- | :--- |
-| P0 | Data/AI | CSV 로그 업로드, PII/기밀정보 마스킹 | Blob Storage, Azure OpenAI |
-| P0 | AI/ML | 프롬프트 업무유형 분류 | Azure OpenAI |
-| P0 | Back | 부서별 통계 API, 점수 계산 API | App Service / Container Apps |
-| P0 | Front | 부서별 대시보드, 추천 자동화 후보 화면 | Static Web Apps |
-| P0 | DB | 분석 결과 저장 | Azure SQL / PostgreSQL |
-| P1 | AI/ML | Embedding + Clustering | Azure OpenAI Embedding, sklearn |
-| P1 | Front | Risk Score / Opportunity Score 시각화 | Static Web Apps |
-| P1 | Back | 추천 근거 설명 API | Azure OpenAI |
-| P2 | Infra | 인증, 접근권한, 로그 | Microsoft Entra ID, App Insights |
-| P2 | Demo | 샘플 데이터 기반 데모 시나리오 | Blob, DB |
+> 전체 38개 요구사항의 상세 명세는 [기능명세서 CSV](./docs/feature_specification.csv) 참고
+
+### P0 — 메인 데모 필수 (17개)
+
+| 화면 넘버링 | 요구사항 | 담당 파트 | Azure |
+|:---|:---|:---|:---|
+| SCR-INPUT-001 | CSV 로그 업로드 | Frontend, Backend | Static Web Apps, App Service, Blob |
+| SCR-INPUT-004 | 데이터 입력 이력 조회 | Frontend, Backend | Static Web Apps, Azure SQL |
+| FUNC-PROC-001 | PII/기밀정보 탐지 | AI/ML | Azure OpenAI |
+| FUNC-PROC-002 | 프롬프트 마스킹 | AI/ML | Azure OpenAI |
+| FUNC-PROC-003 | 업무 유형 분류 | AI/ML | Azure OpenAI |
+| FUNC-PROC-006 | Risk Score 계산 | Backend | App Service, Azure SQL |
+| FUNC-PROC-007 | Opportunity Score 계산 | Backend | App Service, Azure SQL |
+| FUNC-PROC-008 | 자동화 후보 매칭 | Backend, AI/ML | Azure OpenAI, Azure SQL |
+| FUNC-PROC-009 | 마스킹 후 원문 즉시 폐기 검증 | Backend, AI/ML | App Service |
+| FUNC-PROC-010 | 마스킹 실패 Fallback | AI/ML | Azure OpenAI |
+| SCR-DASH-001 | 부서별 LLM 사용 현황 | Frontend, Backend | Static Web Apps, Azure SQL |
+| SCR-DASH-002 | 부서별 업무 유형 비중 | Frontend | Static Web Apps |
+| SCR-RECO-001 | AI 자동화 후보 카드 리스트 | Frontend | Static Web Apps |
+| SCR-RECO-002 | 추천 상세 보기 | Frontend, Backend | Static Web Apps, App Service |
+| SCR-RECO-004 | Risk 기반 도입 판단 | Frontend, Backend | Static Web Apps, App Service |
+| SCR-RISK-001 | 부서별 Risk Overview | Frontend | Static Web Apps |
+| SCR-RISK-003 | 위험도 등급 시각화 | Frontend | Static Web Apps |
+
+### P1 — 확장 데모 (9개)
+
+| 화면 넘버링 | 요구사항 | 담당 파트 | Azure |
+|:---|:---|:---|:---|
+| FUNC-PROC-004 | Embedding 생성 | AI/ML | Azure OpenAI Embedding |
+| FUNC-PROC-005 | 군집화 (Clustering) | AI/ML | App Service |
+| FUNC-PROC-011 | Embedding 접근 통제 | Backend, Infra | Azure SQL, Key Vault |
+| SCR-DASH-003 | 부서별 반복 프롬프트 비율 | Frontend, Backend | Static Web Apps, App Service |
+| SCR-DASH-004 | 부서별 비용 트렌드 | Frontend | Static Web Apps |
+| SCR-RECO-003 | 추천 근거 설명 (XAI) | AI/ML, Backend | Azure OpenAI |
+| SCR-RISK-002 | 민감정보 유형별 통계 | Frontend, Backend | Static Web Apps, App Service |
+| SCR-ADMIN-001 | 마스킹 규칙 관리 | Frontend, Backend | Static Web Apps, App Service, Azure SQL |
+| SCR-AUDIT-002 | 시스템 모니터링 대시보드 | Backend, Infra | Application Insights |
+
+### P2 — 운영 확장 (12개)
+
+| 화면 넘버링 | 요구사항 | 담당 파트 | Azure |
+|:---|:---|:---|:---|
+| SCR-AUTH-001 | 관리자 로그인 (SSO) | Backend | Microsoft Entra ID, App Service |
+| SCR-AUTH-002 | 역할 기반 권한 관리 | Backend | Microsoft Entra ID, Azure SQL |
+| SCR-INPUT-002 | **사내 LLM Gateway 실시간 수집** | Backend, Infra | **Event Hub, Azure Functions, Blob** |
+| SCR-INPUT-003 | Gateway 사전 마스킹 (Edge Masking) | Backend, Infra | Event Hub, App Service |
+| SCR-INPUT-005 | 데모 트리거 (샘플 프롬프트 실행) | Frontend, Backend | App Service, Azure OpenAI, Event Hub |
+| SCR-RISK-004 | 보안 교육 필요 영역 추천 | Backend, AI/ML | Azure OpenAI |
+| SCR-ADMIN-002 | 데이터 보관 정책 | Backend | App Service, Azure SQL |
+| SCR-ADMIN-003 | 배포 모드 설정 | Backend, Infra | App Service, Key Vault |
+| SCR-ADMIN-004 | 부서/사용자 관리 | Backend | Azure SQL, Microsoft Entra ID |
+| SCR-AUDIT-001 | 접근 감사 로그 조회 | Backend | Application Insights, Azure SQL |
+| SCR-AUDIT-003 | 데이터 완전 삭제 | Backend | Azure SQL, Blob Storage |
+| SCR-AUDIT-004 | Key/Secret 관리 (Key Vault) | Infra | Azure Key Vault |
+
+---
+
+## 🎯 단계별 완료 시 구현 범위
+
+### ✅ P0 완료 시 — 완벽한 메인 서비스 (CSV 기반 SaaS 단독 동작)
+
+```
+[데이터 입력]
+✅ CSV 업로드 + 입력 이력 가시성
+
+[데이터 처리 - 책임 있는 AI 완비]
+✅ PII/기밀정보 탐지 → 마스킹 → 원문 폐기 검증 → 마스킹 실패 Fallback
+✅ 업무 유형 분류 (LLM 기반 6개 카테고리)
+✅ Risk Score / Opportunity Score 계산
+✅ 자동화 후보 매칭
+
+[부서별 대시보드]
+✅ 부서별 사용 현황 + 업무 유형 비중
+
+[자동화 추천 - 핵심 가치]
+✅ 자동화 후보 카드 + 추천 상세
+✅ Risk 기반 도입 판단 (Opportunity vs Risk 결합 — 핵심 차별화)
+
+[보안/위험도 - 책임 있는 AI 시각화]
+✅ 부서별 Risk Overview + 위험도 등급 시각화
+```
+
+> **"CSV 업로드 한 번으로 부서별 자동화 후보 + 보안 위험을 함께 추천"** 하는 완결된 서비스. P1/P2 없이도 완전 동작 및 평가 가능.
+
+**실행 환경**: SaaS (옵션 A), 단일 관리자 모드, 환경변수 기반 Secret 관리
+
+### 🔵 P1 완료 시 — 분석 정밀도/설명력 강화 (확장 데모)
+
+P0 + 다음 9개 추가:
+
+```
+[정밀도 향상]
+🔵 Embedding 생성 + 군집화 → 더 정교한 업무 패턴 분류
+🔵 Embedding 접근 통제 (민감 파생 데이터 관리)
+
+[설명력 향상]
+🔵 추천 근거 자연어 설명 (XAI) — "왜 이 부서에 이 자동화를?"
+
+[대시보드 확장]
+🔵 부서별 반복 프롬프트 비율
+🔵 부서별 비용 트렌드 (월별/주별)
+🔵 민감정보 유형별 통계
+
+[운영 편의]
+🔵 마스킹 규칙 관리 (관리자가 패턴 직접 추가/수정)
+🔵 시스템 모니터링 대시보드 (Application Insights)
+```
+
+> **분석 결과의 신뢰도와 운영 편의성**이 크게 올라감. 평가 발표 시 "왜 이렇게 추천했는가" 설명력 ↑
+
+### 🟡 P2 완료 시 — 운영 환경 완성 (대기업 도입 가능 수준)
+
+P0 + P1 + 다음 12개 추가:
+
+```
+[실시간 수집 파이프라인]
+🟡 사내 LLM Gateway → Event Hub 실시간 수집
+🟡 Gateway 사전 마스킹 (Edge Masking, 옵션 C)
+🟡 데모 트리거 (end-to-end 시연 버튼)
+
+[보안 거버넌스]
+🟡 Microsoft Entra ID SSO 로그인 + RBAC
+🟡 Azure Key Vault 통합 관리
+🟡 접근 감사 로그 조회 + 데이터 완전 삭제 + 증빙 발급
+🟡 데이터 보관 정책 자동 스케줄링
+
+[배포 유연성]
+🟡 배포 모드 설정 (옵션 A/B/C 선택)
+🟡 부서/사용자 매핑 관리
+
+[가치 확장]
+🟡 보안 교육 필요 영역 추천
+```
+
+> **금융·공공·대기업이 도입 가능한 운영 시스템**. 옵션 B(Customer-hosted) / 옵션 C(Edge Masking)까지 지원.
+
+### 📋 도입 단계별 시나리오 (영업 관점)
+
+| 단계 | 적합한 고객 | 환경 |
+|:---|:---|:---|
+| **P0** | PoC / 중소·중견 기업 / 데모 평가 | SaaS, CSV 입력, 단일 관리자 |
+| **P0+P1** | 중견 기업 정식 도입 / 컨설팅 활용 | SaaS, CSV 입력, 분석 정밀도 ↑ |
+| **P0+P1+P2** | 대기업 / 금융 / 공공 운영 도입 | Customer-hosted, 실시간 수집, SSO/RBAC |
 
 ---
 
 ## 📂 문서 자료
 
+- [기능명세서 (CSV)](./docs/feature_specification.csv)
 - [포팅 매뉴얼]()
 - [API 명세서]()
 - [데이터 마스킹 정책서]()
