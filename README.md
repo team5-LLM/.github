@@ -360,9 +360,11 @@ PII/기밀정보 탐지 (정규식 + LLM)
   ↓
 마스킹 → 원문 즉시 폐기 (폐기 검증 / 실패 Fallback)
   ↓
-업무 유형 분류 (Azure OpenAI)
+업무 유형 분류 (Azure OpenAI) — 6개 거시 카테고리
   ↓
-[P1] Embedding 생성 → Clustering
+[P1] Embedding 생성 → 카테고리 내부 Sub-Clustering (계층적)
+       └ 같은 분류 안에서 세부 반복 업무 패턴 발견
+         예) "보고서 작성형" → 캠페인 보고서 / 주간 운영 보고서 / 임원 보고서
   ↓
 Risk Score 계산 (5개 항목 가중치 합산)
   ↓
@@ -437,8 +439,8 @@ Opportunity Score 계산 (5개 항목 가중치 합산)
 
 | 화면 넘버링 | 요구사항 | 담당 파트 | Azure |
 |:---|:---|:---|:---|
-| FUNC-PROC-004 | Embedding 생성 | AI/ML | Azure OpenAI Embedding |
-| FUNC-PROC-005 | 군집화 (Clustering) | AI/ML | App Service |
+| FUNC-PROC-004 | Embedding 생성 (Sub-Clustering 용) | AI/ML | Azure OpenAI Embedding |
+| FUNC-PROC-005 | 카테고리 내부 Sub-Clustering | AI/ML | App Service |
 | FUNC-PROC-011 | Embedding 접근 통제 | Backend, Infra | Azure SQL, Key Vault |
 | SCR-DASH-003 | 부서별 반복 프롬프트 비율 | Frontend, Backend | Static Web Apps, App Service |
 | SCR-DASH-004 | 부서별 비용 트렌드 | Frontend | Static Web Apps |
@@ -501,7 +503,9 @@ P0 + 다음 9개 추가:
 
 ```
 [정밀도 향상]
-🔵 Embedding 생성 + 군집화 → 더 정교한 업무 패턴 분류
+🔵 Embedding 생성 + 카테고리 내부 Sub-Clustering → 6개 거시 카테고리를
+   세부 업무 패턴까지 분해 ("보고서 작성형" → "캠페인 보고서" 등)
+   → 추천 카드의 구체성 ↑ ("마케팅팀 - 캠페인 보고서 자동 생성기" 수준)
 🔵 Embedding 접근 통제 (민감 파생 데이터 관리)
 
 [설명력 향상]

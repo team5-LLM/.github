@@ -9,8 +9,8 @@
 3.1,데이터 처리,FUNC-PROC-001,PII/기밀정보 탐지,정규식 + LLM 기반 민감정보 탐지 (이름/이메일/전화번호/계약서/API Key 등),AI/ML,Azure OpenAI,P0,책임 있는 AI 핵심 (보안 평가 항목)
 3.2,데이터 처리,FUNC-PROC-002,프롬프트 마스킹,탐지된 민감정보 마스킹 처리 후 원문 즉시 폐기,AI/ML,"Azure OpenAI, App Service",P0,책임 있는 AI 핵심 (보안 평가 항목)
 3.3,데이터 처리,FUNC-PROC-003,업무 유형 분류,LLM 기반 6개 카테고리 분류 (보고서작성/코드생성/고객응대/문서요약/데이터분석/검색),AI/ML,Azure OpenAI,P0,—
-3.4,데이터 처리,FUNC-PROC-004,Embedding 생성,마스킹된 프롬프트의 임베딩 벡터 생성,AI/ML,Azure OpenAI Embedding,P1,P1 미구현 시 3.3 분류만으로도 군집화 없이 동작
-3.5,데이터 처리,FUNC-PROC-005,군집화 (Clustering),sklearn 기반 임베딩 군집화 및 대표 프롬프트 추출,AI/ML,App Service,P1,P1 미구현 시 분류 카테고리 단위 집계로 대체
+3.4,데이터 처리,FUNC-PROC-004,Embedding 생성,마스킹된 프롬프트의 임베딩 벡터 생성 (3.5 Sub-Clustering 입력용),AI/ML,Azure OpenAI Embedding,P1,P1 미구현 시 3.3 분류만으로도 sub-clustering 없이 동작
+3.5,데이터 처리,FUNC-PROC-005,카테고리 내부 Sub-Clustering,"3.3 업무 유형 분류로 얻은 6개 거시 카테고리 내부에서 sklearn 기반 임베딩 군집화 수행. 같은 분류 안에서 세부 반복 업무 패턴(예: '보고서 작성형' → '캠페인 보고서/주간 보고서/임원 보고서')과 대표 프롬프트 추출",AI/ML,App Service,P1,P1 미구현 시 6개 분류 카테고리 단위 집계로 대체 (sub-cluster 없이 거시 단위 추천)
 3.6,데이터 처리,FUNC-PROC-006,Risk Score 계산,5개 항목 가중치 합산 (개인정보 30% + 기밀 25% + 고객 20% + 재무법무 15% + 노출 10%),Backend,"App Service, Azure SQL",P0,—
 3.7,데이터 처리,FUNC-PROC-007,Opportunity Score 계산,5개 항목 가중치 합산 (사용빈도 30% + 반복성 25% + 비용 20% + 사용자수 15% + 난이도역점수 10%),Backend,"App Service, Azure SQL",P0,—
 3.8,데이터 처리,FUNC-PROC-008,자동화 후보 매칭,업무유형 라벨별 자동화 서비스 후보 매핑 (문서자동화/Copilot/RAG 등),"Backend, AI/ML","Azure OpenAI, Azure SQL",P0,—
